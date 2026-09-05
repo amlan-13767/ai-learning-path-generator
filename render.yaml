@@ -1,0 +1,48 @@
+services:
+  # Main Web Service
+  - type: web
+    name: ai-learning-path-api
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    
+    # Pre-deploy command to initialize database
+    preDeployCommand: python init_render_db.py
+    
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: false
+      
+      - key: OAUTHLIB_RELAX_TOKEN_SCOPE
+        value: true
+      
+      - key: RENDER
+        value: true
+      
+      # These need to be set manually in Render dashboard
+      - key: DATABASE_URL
+        sync: false
+      
+      - key: OPENAI_API_KEY
+        sync: false
+      
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      
+      - key: REDIS_URL
+        sync: false
+
+# Note: PostgreSQL database should be created separately in Render dashboard
+# and linked via DATABASE_URL environment variable

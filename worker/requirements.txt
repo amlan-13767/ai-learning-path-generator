@@ -1,0 +1,39 @@
+# Worker requirements (includes all heavy dependencies)
+python-dotenv==1.0.1
+redis>=5.0.0
+rq==1.16.1
+
+# All existing dependencies from main requirements.txt
+pydantic==1.10.18
+email-validator==2.1.0.post1
+
+# LangChain
+langchain==0.0.267
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# Document processing
+unstructured==0.10.30
+pypandoc>=1.11
+python-magic>=0.4.27; sys_platform != 'win32'
+onnxruntime>=1.20.0
+
+# RAG and embeddings
+faiss-cpu>=1.7.4
+
+# Vector database
+chromadb==0.3.29
+
+# ML & NLP
+sentence-transformers>=2.2.2
+scikit-learn>=1.2.2
+numpy>=1.24.0
+pandas>=2.0.0
+
+# HTTP client
+aiohttp>=3.9.0
+
+# Observability
+langsmith>=0.0.21,<0.1.0
+wandb>=0.15.0
+cohere>=4.37

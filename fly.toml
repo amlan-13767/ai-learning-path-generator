@@ -1,0 +1,14 @@
+# fly.toml app configuration file for the RQ Worker
+app = 'ai-learning-path-generator'
+primary_region = 'dfw'
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  worker = "python worker.py"
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

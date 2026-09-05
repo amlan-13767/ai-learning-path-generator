@@ -1,0 +1,12 @@
+import { CheckCircle2, Circle, Loader2, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+const STATUS_MESSAGES = { queued: 'Your request is queued for the AI worker.', started: 'AI is reading your learning brief.', processing: 'Shaping the curriculum around your level.', researching: 'Finding useful resources and practice.', analyzing: 'Connecting your path to career signals.', finalizing: 'Putting the final details in place.', finished: 'Your learning path is ready.' };
+const PROGRESS_STAGES = [{ key: 'queued', label: 'Brief received', progress: 10 }, { key: 'started', label: 'Understanding goals', progress: 25 }, { key: 'processing', label: 'Building curriculum', progress: 55 }, { key: 'analyzing', label: 'Adding career context', progress: 80 }, { key: 'finished', label: 'Path complete', progress: 100 }];
+
+export default function ProgressTracker({ status }) {
+  const [currentProgress, setCurrentProgress] = useState(0);
+  const [displayMessage, setDisplayMessage] = useState('Waiting for the worker...');
+  useEffect(() => { if (!status) return; const stage = PROGRESS_STAGES.find((item) => item.key === status); if (stage) setCurrentProgress(stage.progress); setDisplayMessage(STATUS_MESSAGES[status] || 'Processing your brief...'); }, [status]);
+  return <div className="processing-panel glass-panel"><div className="processing-header"><div className="processing-orb"><Sparkles size={21} /></div><div><p className="eyebrow">AI WORKSHOP</p><h2>Building your path</h2><p>{displayMessage}</p></div></div><div className="processing-progress"><div className="progress-track"><span style={{ width: `${currentProgress}%` }} /></div><strong>{currentProgress}%</strong></div><div className="processing-stages">{PROGRESS_STAGES.map((stage, index) => { const isActive = status === stage.key; const isComplete = currentProgress >= stage.progress; return <div key={stage.key} className={`processing-stage ${isActive ? 'stage-active' : ''}`}>{isComplete ? <CheckCircle2 size={18} /> : isActive ? <Loader2 size={18} className="spin" /> : <Circle size={18} />}<span><small>0{index + 1}</small>{stage.label}</span></div>; })}</div><p className="processing-note">Your roadmap is being shaped around your time, level, and goals.</p></div>;
+}

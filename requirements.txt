@@ -1,0 +1,66 @@
+# Core dependencies
+gunicorn>=21.2.0
+python-dotenv==1.0.1
+Flask>=2.0.1
+
+# Pydantic v1 - MUST be installed first and locked
+pydantic==1.10.18
+email-validator==2.1.0.post1
+
+# LangChain - using older versions compatible with Pydantic v1
+langchain==0.0.267
+openai>=1.0.0  # Using new OpenAI API
+tiktoken>=0.5.0  # Token counting for cost optimization
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary>=2.9.9  # Postgres driver for production
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Migrate==4.0.7
+
+# Document processing
+unstructured==0.10.30  # Using base package without all-docs to avoid complex deps
+pypandoc>=1.11
+python-magic>=0.4.27; sys_platform != 'win32'
+onnxruntime>=1.20.0  # Explicitly specify a compatible version
+
+# RAG and embeddings
+faiss-cpu>=1.7.4
+
+# Vector database
+chromadb==0.3.29  # Last version compatible with Pydantic v1
+
+# ML & NLP
+sentence-transformers>=2.2.2
+scikit-learn>=1.2.2
+numpy>=1.24.0
+pandas>=2.0.0
+
+Flask-Dance[google]==7.1.0
+
+# Web UI
+flask-wtf>=1.0.0
+Jinja2>=3.0.1
+werkzeug>=2.0.1
+
+# HTTP client for async resource validation
+aiohttp>=3.9.0
+
+# Caching
+redis>=4.6.0,<5.0.0
+rq==1.16.1
+
+# Observability & Monitoring
+langsmith<0.1.0,>=0.0.21  # LLM tracing and debugging (compatible with langchain 0.0.267)
+wandb>=0.16.0  # Experiment tracking and metrics
+
+# Development
+pytest>=7.0.0
+pytest-asyncio>=0.21.0  # For async test support
+
+# Platform-specific dependencies
+--find-links https://download.pytorch.org/whl/torch_stable.html
+
+
+google-auth>=2.0.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=0.4.6
