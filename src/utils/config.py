@@ -29,27 +29,27 @@ if not os.environ.get('RENDER'):
 DEV_MODE = os.getenv('DEV_MODE', 'False').lower() == 'true'
 
 # API Keys
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 # Deprecated - kept for backward compatibility but not used
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 # Perplexity pricing (cost per 1K tokens) - default 0 so users can opt-in
 PERPLEXITY_PROMPT_COST_PER_1K = float(os.getenv("PERPLEXITY_PROMPT_COST_PER_1K", "0"))
 PERPLEXITY_COMPLETION_COST_PER_1K = float(os.getenv("PERPLEXITY_COMPLETION_COST_PER_1K", "0"))
 
-# Ensure OpenAI API key is available (unless in DEV_MODE)
-if not DEV_MODE and not OPENAI_API_KEY:
-    raise EnvironmentError("OPENAI_API_KEY environment variable is required (unless DEV_MODE=true).")
+# The active text-generation provider validates its own credentials when called.
+# Keeping startup independent of a provider prevents the API from requiring OpenAI.
 
-# Default model provider (can be 'openai' or 'deepseek')
-DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "openai").lower()
+# Default model provider
+DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "gemini").lower()
 
 # Model configuration
 # Using GPT-4o-mini: 3x cheaper than GPT-3.5-turbo, better quality!
 # Cost: $0.15/1M input tokens vs $0.50 for GPT-3.5
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")  # Cheaper embeddings
-MAX_TOKENS = int(os.getenv("MAX_TOKENS", "1000"))
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4000"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 
 # Alternative models for different use cases
@@ -61,6 +61,15 @@ PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "pplx-7b-online")  # noqa: E501
 
 # Vector database settings
 VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH", "./vector_db")
+SENTENCE_TRANSFORMER_MODEL = os.getenv(
+    "SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2"
+)
+SENTENCE_TRANSFORMER_RESOURCES_COLLECTION = os.getenv(
+    "SENTENCE_TRANSFORMER_RESOURCES_COLLECTION", "learning_resources_st"
+)
+SENTENCE_TRANSFORMER_PATHS_COLLECTION = os.getenv(
+    "SENTENCE_TRANSFORMER_PATHS_COLLECTION", "learning_paths_st"
+)
 
 # Region settings
 DEFAULT_REGION = os.getenv("DEFAULT_REGION", "North America")
@@ -105,12 +114,12 @@ HYBRID_TOP_K = int(os.getenv("HYBRID_TOP_K", "20"))
 
 # Query Rewriting
 QUERY_REWRITE_ENABLED = os.getenv("QUERY_REWRITE_ENABLED", "True").lower() == "true"
-QUERY_REWRITE_MODEL = os.getenv("QUERY_REWRITE_MODEL", "gpt-3.5-turbo")
+QUERY_REWRITE_MODEL = os.getenv("QUERY_REWRITE_MODEL", GEMINI_MODEL)
 QUERY_REWRITE_MAX_TOKENS = int(os.getenv("QUERY_REWRITE_MAX_TOKENS", "100"))
 
 # Contextual Compression
 CONTEXTUAL_COMPRESSION_ENABLED = os.getenv("CONTEXTUAL_COMPRESSION_ENABLED", "True").lower() == "true"
-COMPRESSION_MODEL = os.getenv("COMPRESSION_MODEL", "gpt-3.5-turbo")
+COMPRESSION_MODEL = os.getenv("COMPRESSION_MODEL", GEMINI_MODEL)
 COMPRESSION_MAX_TOKENS = int(os.getenv("COMPRESSION_MAX_TOKENS", "500"))
 
 # Reranking Configuration

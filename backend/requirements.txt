@@ -1,7 +1,24 @@
-# Backend API requirements (lightweight)
+# Backend API requirements
 Flask>=2.0.1
 flask-cors>=4.0.0
 python-dotenv==1.0.1
 redis>=5.0.0
 rq==1.16.1
 gunicorn>=21.2.0
+
+# Database
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+psycopg2-binary>=2.9.9
+
+# Authentication / forms
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Dance[google]==7.1.0
+email-validator==2.1.0.post1
+
+# RAG / vector search
+chromadb==0.3.29
+sentence-transformers>=2.2.2
+hnswlib==0.8.0
+langchain==0.0.267

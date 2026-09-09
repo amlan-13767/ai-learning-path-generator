@@ -4,13 +4,11 @@ Semantic caching layer using Redis for fast query result retrieval.
 Semantic caching stores query embeddings and their results, allowing instant
 responses for similar queries without re-running the expensive RAG pipeline.
 """
-import os
 import json
 import hashlib
 from typing import Optional, Any, Dict
 import numpy as np
 
-# Optional imports
 try:
     import redis
     REDIS_AVAILABLE = True
@@ -19,15 +17,11 @@ except ImportError:
     print("⚠️  Redis not installed. Install with: pip install redis")
 
 try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
-try:
-    from src.utils.config import EMBEDDING_MODEL
+    from src.utils.config import SENTENCE_TRANSFORMER_MODEL
 except Exception:
-    EMBEDDING_MODEL = "text-embedding-3-small"
+    SENTENCE_TRANSFORMER_MODEL = "all-MiniLM-L6-v2"
+
+from src.ml.local_embeddings import SentenceTransformerEmbeddingFunction
 
 class SemanticCache:
     """
@@ -46,7 +40,7 @@ class SemanticCache:
         redis_db: int = 0,
         ttl: int = 3600,
         similarity_threshold: float = 0.95,
-        openai_api_key: Optional[str] = None
+        embedding_model: Optional[str] = None
     ):
         """
         Initialize semantic cache.
@@ -59,12 +53,14 @@ class SemanticCache:
             redis_db: Redis database number (used if redis_url not provided)
             ttl: Time-to-live for cached entries (seconds)
             similarity_threshold: Minimum cosine similarity for cache hit
-            openai_api_key: OpenAI API key for embeddings
+            embedding_model: Sentence Transformer model name
         """
         self.ttl = ttl
         self.similarity_threshold = similarity_threshold
         self.redis_client = None
-        self.openai_client = None
+        self.embedding_function = SentenceTransformerEmbeddingFunction(
+            model_name=embedding_model or SENTENCE_TRANSFORMER_MODEL
+        )
         self.enabled = False
         
         # Initialize Redis
@@ -98,15 +94,8 @@ class SemanticCache:
         else:
             print("⚠️  Redis not available. Caching disabled.")
         
-        # Initialize OpenAI for embeddings
-        if OPENAI_AVAILABLE:
-            api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
-            if api_key:
-                self.openai_client = OpenAI(api_key=api_key)
-        
-        if not self.openai_client:
-            print("⚠️  OpenAI not available. Semantic caching disabled.")
-            self.enabled = False
+        if self.redis_client:
+            self.enabled = True
     
     def _get_embedding(self, text: str) -> Optional[np.ndarray]:
         """
@@ -118,15 +107,11 @@ class SemanticCache:
         Returns:
             Embedding vector or None if failed
         """
-        if not self.openai_client:
+        if not self.embedding_function:
             return None
         
         try:
-            response = self.openai_client.embeddings.create(
-                model=EMBEDDING_MODEL,
-                input=text
-            )
-            embedding = np.array(response.data[0].embedding)
+            embedding = np.array(self.embedding_function([text])[0])
             return embedding
         except Exception as e:
             print(f"⚠️  Embedding generation failed: {e}")

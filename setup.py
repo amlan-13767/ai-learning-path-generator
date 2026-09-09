@@ -13,8 +13,6 @@ setup(
         "python-dotenv>=1.0.0",
         "Flask>=2.0.1",
         "langchain>=0.0.267",
-        "langchain-openai>=0.0.1",
-        "openai>=1.0.0",
         "chromadb>=0.4.13",
         "sentence-transformers>=2.2.2",
         "scikit-learn>=1.2.2",

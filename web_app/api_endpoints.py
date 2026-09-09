@@ -245,7 +245,7 @@ def ask_question():
         # Search for relevant documents
         relevant_docs = document_store.advanced_rag_search(
             query=f"{topic}: {question}",
-            collection_name="learning_resources",
+            collection_name="learning_resources_st",
             top_k=3,
             use_cache=True
         )

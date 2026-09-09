@@ -1,11 +1,11 @@
-"""OpenAI-powered resource search helper.
+"""Perplexity-powered resource search helper.
 
-This module queries the OpenAI Chat Completion endpoint to retrieve
+This module queries the Perplexity chat completion endpoint to retrieve
 real, high-quality learning resources (videos, articles, docs) that a user
 can click to continue learning. It returns a simple list of dictionaries so
 upstream code can map them into `ResourceItem` Pydantic objects.
 
-If the `OPENAI_API_KEY` environment variable is missing, or the API call
+If the `PERPLEXITY_API_KEY` environment variable is missing, or the API call
 fails, we fall back to a single placeholder so the rest of the app
 continues to work.
 """
@@ -18,7 +18,7 @@ import re
 import time
 from typing import Dict, List
 
-from openai import OpenAI
+import requests
 from langsmith import traceable as langsmith_traceable
 
 from src.utils.observability import get_observability_manager
@@ -27,17 +27,13 @@ from src.utils.config import (
     PERPLEXITY_COMPLETION_COST_PER_1K,
 )
 
-# Initialize OpenAI client
-client = None
-
-
 def _stub_resources() -> List[Dict[str, str]]:
     """Return a static placeholder when real search is unavailable."""
     return [
         {
             "type": "article",
             "url": "https://example.com/placeholder-resource",
-            "description": "Add your OpenAI API key to see real learning resources.",
+            "description": "Configure Perplexity to see real learning resources.",
         }
     ]
 
@@ -182,27 +178,31 @@ def search_resources(query: str, k: int = 3, timeout: int = 45, trusted_sources:
     if perplexity_key:
         try:
             logging.info("Searching for resources using Perplexity (web search)...")
-            client = OpenAI(
-                api_key=perplexity_key,
-                base_url="https://api.perplexity.ai"
-            )
-
             start_time = time.time()
-            completion = client.chat.completions.create(
-                model="sonar-pro",  # Online search model
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that searches the web for real learning resources. Always return valid JSON with actual, working URLs.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.2,
-                max_tokens=500,
+            response = requests.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {perplexity_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "sonar-pro",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that searches the web for real learning resources. Always return valid JSON with actual, working URLs.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 500,
+                },
                 timeout=timeout,
             )
+            response.raise_for_status()
+            completion = response.json()
             latency_ms = (time.time() - start_time) * 1000
-            content = completion.choices[0].message.content.strip()
+            content = completion["choices"][0]["message"]["content"].strip()
 
             # Remove markdown code blocks if present
             if content.startswith("```"):
@@ -300,48 +300,6 @@ def search_resources(query: str, k: int = 3, timeout: int = 45, trusted_sources:
 
                 return cleaned
         except Exception as exc:
-            logging.warning(f"Perplexity resource search failed: {exc}. Falling back to OpenAI...")
+            logging.warning(f"Perplexity resource search failed: {exc}. Using placeholder resources.")
 
-    # Fallback to OpenAI
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logging.info("OPENAI_API_KEY not set; returning stub resources")
-        return _stub_resources()
-
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
-
-    try:
-        client = OpenAI(api_key=api_key)
-
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful research assistant that provides real, working URLs to learning resources."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-            max_tokens=400,
-            timeout=timeout,
-        )
-        content = completion.choices[0].message.content.strip()
-
-        # Remove markdown code blocks if present
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-            content = content.strip()
-
-        resources: List[Dict[str, str]] = json.loads(content)
-        cleaned: List[Dict[str, str]] = []
-        for item in resources[:k]:
-            cleaned.append({
-                "type": item.get("type", "article"),
-                "url": item.get("url", ""),
-                "description": item.get("description", ""),
-            })
-        cleaned = _filter_by_keywords(cleaned, query)
-        return cleaned or _stub_resources()
-    except Exception as exc:
-        logging.warning("OpenAI resource search failed: %s", exc)
-        return _stub_resources()
+    return _stub_resources()

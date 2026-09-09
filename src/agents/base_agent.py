@@ -6,7 +6,7 @@ import abc
 from datetime import datetime
 import json
 
-from src.utils.config import OPENAI_API_KEY
+from src.utils.config import GEMINI_API_KEY
 from src.ml.model_orchestrator import ModelOrchestrator
 from src.data.vector_store import VectorStore
 
@@ -23,7 +23,7 @@ class BaseAgent(abc.ABC):
             api_key: Optional API key for language models
         """
         try:
-            self.api_key = api_key or OPENAI_API_KEY
+            self.api_key = api_key or GEMINI_API_KEY
             if not self.api_key:
                 print("Warning: No API key provided. Some features may not work correctly.")
                 
@@ -49,7 +49,7 @@ class BaseAgent(abc.ABC):
         except Exception as e:
             print(f"Error initializing agent: {str(e)}")
             # Try to continue with minimal functionality
-            self.api_key = api_key or OPENAI_API_KEY
+            self.api_key = api_key or GEMINI_API_KEY
             self.memory = []
             self.goals = []
             self.current_task = None

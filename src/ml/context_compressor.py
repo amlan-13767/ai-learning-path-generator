@@ -4,10 +4,9 @@ Contextual compression module for reducing token usage in RAG.
 Contextual compression uses an LLM to extract only the most relevant sentences
 from retrieved documents, significantly reducing token count and cost.
 """
-import os
 from typing import List, Optional
 from langchain.schema import Document
-from openai import OpenAI
+from src.ml.gemini_client import GeminiClient
 
 
 class ContextCompressor:
@@ -32,16 +31,9 @@ class ContextCompressor:
             model: Model to use for compression
             max_tokens: Maximum tokens per compressed chunk
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.model = model
         self.max_tokens = max_tokens
-        self.client = None
-        
-        if self.api_key:
-            self.client = OpenAI(api_key=self.api_key)
-            print(f"✅ Context compressor initialized (model: {model})")
-        else:
-            print("❌ OPENAI_API_KEY not set. Compression disabled.")
+        self.client = GeminiClient(api_key=api_key, model=model)
     
     def compress(
         self,
@@ -58,7 +50,7 @@ class ContextCompressor:
         Returns:
             Compressed documents
         """
-        if not self.client or not documents:
+        if not documents:
             return documents
         
         compressed_docs = []
@@ -138,17 +130,13 @@ Instructions:
 Relevant sentences:"""
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that extracts relevant information."},
-                    {"role": "user", "content": prompt}
-                ],
+            compressed = self.client.generate_text(
+                prompt=prompt,
+                system_message="You are a helpful assistant that extracts relevant information.",
                 temperature=0.1,  # Low temperature for consistency
                 max_tokens=self.max_tokens
             )
-            
-            compressed = response.choices[0].message.content.strip()
+            compressed = compressed.strip()
             
             # If compression resulted in empty or very short text, keep original
             if len(compressed) < 50:

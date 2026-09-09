@@ -11,6 +11,7 @@ from web_app.models import db, UserLearningPath, LearningProgress, ChatMessage, 
 from rq import Queue
 import uuid
 import time
+from src.ml.gemini_client import GeminiClient
 
 # Define the blueprint
 # JSON-only blueprint. The Jinja templates it used to render (index/dashboard/
@@ -320,16 +321,14 @@ def delete_path():
     db.session.commit()
     return jsonify({'status': 'success', 'message': 'Path deleted'})
 
-import os
-from openai import OpenAI
-
 @bp.route('/chatbot_query', methods=['POST'])
+@login_required
 def chatbot_query():
     """
     Enhanced chatbot endpoint with conversation memory, intent classification,
     and path modification capabilities.
     
-    Note: Login not required - works for both authenticated and anonymous users.
+    This legacy endpoint is retained for compatibility but requires authentication.
     """
     if current_app.config.get('DEV_MODE'):
         # Return stub data in dev mode
@@ -359,30 +358,36 @@ def chatbot_query():
     try:
         # STATELESS CHATBOT - No database dependencies
         # Works for both authenticated and anonymous users
-        from openai import OpenAI
+        gemini_client = GeminiClient()
         
-        # Initialize OpenAI client
-        openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        
-        # Get learning path context if available
+        # Get learning path context only from the authenticated user's path.
         path_context = ""
         milestones_info = ""
         
         if learning_path_id:
+            user_path = UserLearningPath.query.filter_by(
+                id=learning_path_id,
+                user_id=current_user.id,
+            ).first()
+            if not user_path:
+                return jsonify({'error': 'Learning path not found or access denied'}), 404
+            path_data = user_path.path_data_json
+        else:
             path_data = session.get('current_path')
-            if path_data:
-                topic = path_data.get('topic', 'Unknown')
-                title = path_data.get('title', 'Unknown')
-                path_context = f"\n\nContext: The user is viewing a learning path titled '{title}' about '{topic}'."
-                
-                # Add milestone information if available
-                milestones = path_data.get('milestones', [])
-                if milestones:
-                    milestones_info = "\n\nMilestones in this path:\n"
-                    for i, milestone in enumerate(milestones, 1):
-                        milestone_title = milestone.get('title', f'Milestone {i}')
-                        milestone_desc = milestone.get('description', 'No description')
-                        milestones_info += f"{i}. {milestone_title}: {milestone_desc}\n"
+
+        if path_data:
+            topic = path_data.get('topic', 'Unknown')
+            title = path_data.get('title', 'Unknown')
+            path_context = f"\n\nContext: The user is viewing a learning path titled '{title}' about '{topic}'."
+            
+            # Add milestone information if available
+            milestones = path_data.get('milestones', [])
+            if milestones:
+                milestones_info = "\n\nMilestones in this path:\n"
+                for i, milestone in enumerate(milestones, 1):
+                    milestone_title = milestone.get('title', f'Milestone {i}')
+                    milestone_desc = milestone.get('description', 'No description')
+                    milestones_info += f"{i}. {milestone_title}: {milestone_desc}\n"
         
         # Build the system prompt
         system_prompt = f"""You are a helpful AI learning assistant for an AI Learning Path Generator application.
@@ -435,18 +440,12 @@ When users ask about modifications:
 3. Suggest concrete ways to adapt the path
 4. Remind them they can generate a new path if major changes are needed"""
         
-        # Generate response using OpenAI directly
-        completion = openai_client.chat.completions.create(
-            model=os.getenv('DEFAULT_MODEL', 'gpt-4o-mini'),
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
+        response_text = gemini_client.generate_text(
+            prompt=user_message,
+            system_message=system_prompt,
             temperature=0.7,
-            max_tokens=400
+            max_tokens=400,
         )
-        
-        response_text = completion.choices[0].message.content.strip()
         
         # Check if the chatbot is requesting path generation
         if "GENERATE_PATH:" in response_text:
@@ -613,20 +612,12 @@ Current user question: {user_message}
 Provide a helpful, context-aware response that acknowledges our conversation history."""
         
         # Generate AI response
-        from openai import OpenAI
-        openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        
-        completion = openai_client.chat.completions.create(
-            model=os.getenv('DEFAULT_MODEL', 'gpt-4o-mini'),
-            messages=[
-                {"role": "system", "content": system_prompt}
-            ],
+        response_text = GeminiClient().generate_text(
+            prompt=system_prompt,
             temperature=0.7,
-            max_tokens=500
+            max_tokens=500,
         )
-        
-        response_text = completion.choices[0].message.content.strip()
-        tokens_used = completion.usage.total_tokens
+        tokens_used = 0
         
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
@@ -893,7 +884,6 @@ What specific modification would you like to make?"""
             
             else:
                 # General path-related conversation
-                client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
                 system_prompt = """You are an AI Learning Path Specialist. Help users:
 - Understand how to create effective learning paths
 - Plan their learning journey
@@ -903,19 +893,14 @@ What specific modification would you like to make?"""
 Be encouraging, practical, and guide them to use the form above for generating complete paths.
 Keep responses concise and actionable."""
                 
-                completion = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=0.7
+                response = GeminiClient().generate_text(
+                    prompt=user_message,
+                    system_message=system_prompt,
+                    temperature=0.7,
                 )
-                response = completion.choices[0].message.content
         
         # Chat mode: General conversation with path generation capability
         else:
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
             system_prompt = """You are a friendly AI Learning Assistant. You help users:
 - Answer questions about learning and education
 - Provide study tips and motivation
@@ -942,15 +927,11 @@ Example: If user says "I want to transition from mechanical engineering to data 
 
 Be warm, supportive, and concise."""
             
-            completion = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
-                temperature=0.8
+            response = GeminiClient().generate_text(
+                prompt=user_message,
+                system_message=system_prompt,
+                temperature=0.8,
             )
-            response = completion.choices[0].message.content
             
             # Check if the chatbot is requesting path generation
             if "GENERATE_PATH:" in response:
@@ -1056,26 +1037,22 @@ GENERATE_PATH: Career transition from Mechanical Engineering to Data Analyst | b
 
 Be warm, supportive, and conversational. Remember context from previous messages."""
         
-        # Prepend system message
-        api_messages = [{"role": "system", "content": system_prompt}] + messages_for_api + [{"role": "user", "content": user_message}]
-        
-        # Call OpenAI API
-        from openai import OpenAI
-        import time
-        
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        
+        conversation_prompt = "\n".join(
+            f"{message['role']}: {message['content']}" for message in messages_for_api
+        )
+        if conversation_prompt:
+            conversation_prompt += "\n"
+        conversation_prompt += f"user: {user_message}"
+
         start_time = time.time()
-        completion = client.chat.completions.create(
-            model=os.getenv('DEFAULT_MODEL', 'gpt-4o-mini'),
-            messages=api_messages,
+        ai_reply = GeminiClient().generate_text(
+            prompt=conversation_prompt,
+            system_message=system_prompt,
             temperature=0.7,
-            max_tokens=500
+            max_tokens=500,
         )
         response_time_ms = int((time.time() - start_time) * 1000)
-        
-        ai_reply = completion.choices[0].message.content.strip()
-        tokens_used = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+        tokens_used = 0
         
         # Save user message to database (if authenticated)
         if current_user.is_authenticated:

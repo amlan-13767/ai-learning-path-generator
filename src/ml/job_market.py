@@ -6,8 +6,8 @@ with a carefully crafted prompt asking for a JSON-only response containing:
   - average_salary: string (e.g. "$110,000 - $150,000")
   - trending_employers: array[str] of 3 employer names
 
-Perplexity provides real-time web search results, making it perfect for
-current job market data. Falls back to OpenAI if Perplexity is unavailable.
+Perplexity provides real-time web search results, making it useful for
+current job market data.
 
 If the API or JSON parsing fails, we return a static fallback so the UI
 still renders a snapshot.
@@ -19,11 +19,7 @@ import json
 import logging
 from typing import Dict, Any
 
-from openai import OpenAI
-
-# Initialize clients
-openai_client = None
-perplexity_client = None
+import requests
 
 _DEFAULT_SNAPSHOT: Dict[str, Any] = {
     "open_positions": "5,000+",
@@ -47,54 +43,32 @@ def _call_perplexity(prompt: str, timeout: int = 45) -> str:
     if not api_key:
         raise RuntimeError("PERPLEXITY_API_KEY env var not set")
     
-    # Perplexity uses OpenAI-compatible API
-    # Use sonar-pro model for online search
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.perplexity.ai"
-    )
-    
-    completion = client.chat.completions.create(
-        model="sonar-pro",  # Online search model
-        messages=[
-            {
-                "role": "system", 
-                "content": "You are a helpful assistant that searches the web for current job market data. Always return valid JSON."
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-        max_tokens=500,
+    response = requests.post(
+        "https://api.perplexity.ai/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "sonar-pro",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that searches the web for current job market data. Always return valid JSON."
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "max_tokens": 500,
+        },
         timeout=timeout,
     )
-    content = completion.choices[0].message.content
-    return content
-
-
-def _call_openai(prompt: str, timeout: int = 45) -> str:
-    """Fallback to OpenAI if Perplexity is unavailable."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY env var not set")
-    
-    # Get model name from environment (lowercase)
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
-    
-    # Use OpenAI client
-    client = OpenAI(api_key=api_key)
-
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant providing job market estimates."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-        max_tokens=300,
-        timeout=timeout,
-    )
-    content = completion.choices[0].message.content
-    return content
+    response.raise_for_status()
+    data = response.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError("Malformed Perplexity response") from exc
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
@@ -125,12 +99,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
 
 def get_job_market_stats(topic: str) -> Dict[str, Any]:
-    """Return real-time job-market stats using Perplexity (with OpenAI fallback).
-
-    Tries Perplexity first for real-time web search results.
-    Falls back to OpenAI if Perplexity unavailable.
-    Returns default snapshot on any failure.
-    """
+    """Return real-time job-market stats using Perplexity or a static snapshot."""
     if topic == "__fallback__":
         return _DEFAULT_SNAPSHOT.copy()
     
@@ -158,20 +127,6 @@ def get_job_market_stats(topic: str) -> Dict[str, Any]:
             return data
         except Exception as exc:
             print(f"ERROR: Perplexity failed: {exc}")
-            logging.warning(f"Perplexity job-market fetch failed: {exc}. Falling back to OpenAI...")
-    
-    # Fallback to OpenAI
-    try:
-        logging.info(f"Fetching job market data for '{topic}' using OpenAI...")
-        raw = _call_openai(prompt)
-        data = _extract_json(raw)
-        
-        # Basic validation
-        if not all(k in data for k in ("open_positions", "average_salary", "trending_employers")):
-            raise ValueError("Missing required keys in OpenAI response")
-        
-        logging.info(f"✅ Successfully fetched job data via OpenAI")
-        return data
-    except Exception as exc:
-        logging.warning(f"OpenAI job-market fetch failed: {exc}. Using default snapshot.")
-        return _DEFAULT_SNAPSHOT.copy()
+            logging.warning(f"Perplexity job-market fetch failed: {exc}. Using default snapshot.")
+
+    return _DEFAULT_SNAPSHOT.copy()

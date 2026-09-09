@@ -9,7 +9,6 @@ email-validator==2.1.0.post1
 
 # LangChain
 langchain==0.0.267
-openai>=1.0.0
 tiktoken>=0.5.0
 
 # Document processing

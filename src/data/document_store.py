@@ -20,13 +20,13 @@ import threading
 
 import chromadb
 from chromadb.config import Settings
-from chromadb.utils import embedding_functions
 from langchain.schema import Document
 
 from src.utils.config import (
     VECTOR_DB_PATH, 
-    OPENAI_API_KEY,
-    EMBEDDING_MODEL,
+    SENTENCE_TRANSFORMER_MODEL,
+    SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
+    SENTENCE_TRANSFORMER_PATHS_COLLECTION,
     # Advanced RAG config
     ENABLE_SEMANTIC_CACHE,
     QUERY_REWRITE_ENABLED,
@@ -53,6 +53,7 @@ from src.utils.config import (
     SEMANTIC_CACHE_THRESHOLD
 )
 from src.utils.cache import cache
+from src.ml.local_embeddings import SentenceTransformerEmbeddingFunction
 
 
 # Singleton instance and lock for thread-safe initialization
@@ -131,28 +132,8 @@ class DocumentStore:
         if DocumentStore._shared_embedding_function is None:
             print(f"--- DocumentStore.__init__: Initializing custom embedding function ---")
             try:
-                # Create custom embedding function compatible with OpenAI v1.x
-                from openai import OpenAI
-                
-                class CustomOpenAIEmbedding:
-                    def __init__(self, api_key, model_name="text-embedding-ada-002"):
-                        self.client = OpenAI(api_key=api_key)
-                        self.model_name = model_name
-                    
-                    def __call__(self, texts):
-                        """Generate embeddings for a list of texts."""
-                        if isinstance(texts, str):
-                            texts = [texts]
-                        
-                        response = self.client.embeddings.create(
-                            input=texts,
-                            model=self.model_name
-                        )
-                        return [item.embedding for item in response.data]
-                
-                DocumentStore._shared_embedding_function = CustomOpenAIEmbedding(
-                    api_key=OPENAI_API_KEY,
-                    model_name=EMBEDDING_MODEL
+                DocumentStore._shared_embedding_function = SentenceTransformerEmbeddingFunction(
+                    model_name=SENTENCE_TRANSFORMER_MODEL
                 )
                 print("✅ Shared embedding function initialized")
             except Exception as e:
@@ -162,19 +143,27 @@ class DocumentStore:
         self.embedding_function = DocumentStore._shared_embedding_function
         
         # Create or get the collections
-        print("--- DocumentStore.__init__: Getting/creating 'learning_resources' collection ---")
+        print(f"--- DocumentStore.__init__: Getting/creating '{SENTENCE_TRANSFORMER_RESOURCES_COLLECTION}' collection ---")
         self.resources_collection = self._initialize_collection(
-            name="learning_resources",
-            metadata={"description": "Educational resources and materials"}
+            name=SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
+            metadata={
+                "description": "Educational resources and materials",
+                "embedding_provider": "sentence-transformers",
+                "embedding_model": SENTENCE_TRANSFORMER_MODEL,
+            }
         )
-        print("--- DocumentStore.__init__: 'learning_resources' collection obtained ---")
+        print(f"--- DocumentStore.__init__: '{SENTENCE_TRANSFORMER_RESOURCES_COLLECTION}' collection obtained ---")
         
-        print("--- DocumentStore.__init__: Getting/creating 'learning_paths' collection ---")
+        print(f"--- DocumentStore.__init__: Getting/creating '{SENTENCE_TRANSFORMER_PATHS_COLLECTION}' collection ---")
         self.paths_collection = self._initialize_collection(
-            name="learning_paths",
-            metadata={"description": "Generated learning paths"}
+            name=SENTENCE_TRANSFORMER_PATHS_COLLECTION,
+            metadata={
+                "description": "Generated learning paths",
+                "embedding_provider": "sentence-transformers",
+                "embedding_model": SENTENCE_TRANSFORMER_MODEL,
+            }
         )
-        print("--- DocumentStore.__init__: 'learning_paths' collection obtained ---")
+        print(f"--- DocumentStore.__init__: '{SENTENCE_TRANSFORMER_PATHS_COLLECTION}' collection obtained ---")
         
         # Mark as initialized
         self._initialized = True
@@ -184,7 +173,7 @@ class DocumentStore:
         self,
         content: str,
         metadata: Dict[str, Any],
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         document_id: Optional[str] = None
     ) -> str:
         """
@@ -217,7 +206,7 @@ class DocumentStore:
     def add_documents(
         self, 
         documents: List[Document],
-        collection_name: str = "learning_resources"
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION
     ) -> List[str]:
         """
         Add multiple documents to the vector database.
@@ -255,7 +244,7 @@ class DocumentStore:
     def search_documents(
         self,
         query: str,
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 5,
         offset: int = 0
@@ -342,7 +331,7 @@ class DocumentStore:
     def hybrid_search(
         self,
         query: str,
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 5,
         min_relevance: float = 0.7,
@@ -486,7 +475,7 @@ class DocumentStore:
     def delete_document(
         self,
         document_id: str,
-        collection_name: str = "learning_resources"
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION
     ) -> bool:
         """
         Delete a document from the vector database.
@@ -526,7 +515,7 @@ class DocumentStore:
     def add_documents_batch(
         self,
         documents: List[Document],
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         batch_size: int = 100
     ) -> List[str]:
         """
@@ -578,7 +567,7 @@ class DocumentStore:
             print(f"⚠️  Batch add failed: {e}")
             return []
     
-    def get_collection_stats(self, collection_name: str = "learning_resources") -> Dict[str, Any]:
+    def get_collection_stats(self, collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION) -> Dict[str, Any]:
         """
         Get statistics about a collection.
         
@@ -616,7 +605,7 @@ class DocumentStore:
     
     def cleanup_old_embeddings(
         self,
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         days_old: int = 30
     ) -> int:
         """
@@ -662,7 +651,7 @@ class DocumentStore:
     def advanced_rag_search(
         self,
         query: str,
-        collection_name: str = "learning_resources",
+        collection_name: str = SENTENCE_TRANSFORMER_RESOURCES_COLLECTION,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 5,
         use_cache: bool = True

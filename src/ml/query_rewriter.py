@@ -4,9 +4,8 @@ Query rewriting module for improving retrieval with vague or ambiguous queries.
 Query rewriting uses an LLM to expand and clarify user queries before retrieval,
 significantly improving results for short or unclear questions.
 """
-import os
 from typing import Optional
-from openai import OpenAI
+from src.ml.gemini_client import GeminiClient
 
 
 class QueryRewriter:
@@ -31,16 +30,9 @@ class QueryRewriter:
             model: Model to use for rewriting (default: gpt-3.5-turbo)
             max_tokens: Maximum tokens for rewritten query
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.model = model
         self.max_tokens = max_tokens
-        self.client = None
-        
-        if self.api_key:
-            self.client = OpenAI(api_key=self.api_key)
-            print(f"✅ Query rewriter initialized (model: {model})")
-        else:
-            print("❌ OPENAI_API_KEY not set. Query rewriting disabled.")
+        self.client = GeminiClient(api_key=api_key, model=model)
     
     def rewrite(self, query: str) -> str:
         """
@@ -52,10 +44,6 @@ class QueryRewriter:
         Returns:
             Rewritten, expanded query
         """
-        if not self.client:
-            # No rewriting available, return original
-            return query
-        
         # Skip rewriting for already detailed queries (>50 chars)
         if len(query) > 50:
             return query
@@ -74,18 +62,13 @@ Rewrite this query to:
 
 Rewritten query:"""
             
-            # Call OpenAI API
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that expands search queries."},
-                    {"role": "user", "content": prompt}
-                ],
+            rewritten_query = self.client.generate_text(
+                prompt=prompt,
+                system_message="You are a helpful assistant that expands search queries.",
                 temperature=0.3,  # Low temperature for consistency
                 max_tokens=self.max_tokens
             )
-            
-            rewritten_query = response.choices[0].message.content.strip()
+            rewritten_query = rewritten_query.strip()
             
             # Remove quotes if present
             rewritten_query = rewritten_query.strip('"\'')

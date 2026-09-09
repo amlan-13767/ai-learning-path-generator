@@ -5,12 +5,10 @@ Handles text vectorization for semantic search.
 from typing import List, Dict, Any, Optional, Union
 import numpy as np
 
-# Import from langchain (old version compatible with Pydantic v1)
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 
-from src.utils.config import OPENAI_API_KEY, EMBEDDING_MODEL
+from src.ml.local_embeddings import SentenceTransformerEmbeddingFunction
 
 class EmbeddingService:
     """
@@ -21,18 +19,10 @@ class EmbeddingService:
         Initialize the embedding service.
         
         Args:
-            api_key: Optional OpenAI API key
+            api_key: Optional legacy argument retained for compatibility
         """
-        self.api_key = api_key or OPENAI_API_KEY
-        
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Please provide it or set the OPENAI_API_KEY environment variable.")
-        
-        # Initialize the embedding model - langchain_openai handles the new API format internally
-        self.embeddings = OpenAIEmbeddings(
-            api_key=self.api_key,
-            model=EMBEDDING_MODEL
-        )
+        self.api_key = api_key
+        self.embeddings = SentenceTransformerEmbeddingFunction()
         
         # Initialize text splitter for chunking
         self.text_splitter = RecursiveCharacterTextSplitter(

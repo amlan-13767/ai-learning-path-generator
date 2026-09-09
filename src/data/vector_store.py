@@ -5,10 +5,10 @@ from typing import List, Dict, Any, Optional
 import json
 import os
 from pathlib import Path
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import DirectoryLoader
+from src.ml.local_embeddings import SentenceTransformerEmbeddingFunction
 
 class VectorStore:
     """
@@ -19,15 +19,12 @@ class VectorStore:
         Initialize the vector store.
         
         Args:
-            api_key: Optional OpenAI API key
+            api_key: Optional legacy argument retained for compatibility
         """
         self.api_key = api_key
-        
-        # Use the latest LangChain OpenAI embeddings
-        # This works with openai v1.0.0+ as LangChain handles the API compatibility
-        self.embeddings = OpenAIEmbeddings(api_key=api_key)
+        self.embeddings = SentenceTransformerEmbeddingFunction()
             
-        self.vector_store_path = Path("vector_db")
+        self.vector_store_path = Path("vector_db_sentence_transformers")
         self.vector_store_path.mkdir(exist_ok=True)
         self.vector_store = None
 

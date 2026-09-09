@@ -47,7 +47,7 @@ def generate_learning_path_for_worker(payload):
         goals = [goals_raw.strip()]
     else:
         goals = None
-    ai_provider = payload.get('ai_provider', 'openai')
+    ai_provider = payload.get('ai_provider', 'gemini')
     ai_model = payload.get('ai_model')
 
     # Initialize the generator (constructor accepts optional api_key only)
