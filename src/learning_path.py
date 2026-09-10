@@ -32,8 +32,8 @@ from src.utils.helpers import (
 )
 from src.utils.observability import get_observability_manager, traceable
 from src.utils.semantic_cache import SemanticCache
-# Import for OpenAI-powered resource search
-from src.ml.resource_search import search_resources
+# Import for Perplexity-powered resource search and sanitization
+from src.ml.resource_search import search_resources, sanitize_resources
 
 
 class ResourceItem(BaseModel):
@@ -93,12 +93,11 @@ class Milestone(BaseModel):
     @validator("resources", pre=True, always=True)
     def check_resources_not_empty(cls, v):
         if not v:
-            # Instead of raising an error, provide a default resource
             return [
                 ResourceItem(
                     type="article",
-                    url="https://example.com/default-resource",
-                    description="Default resource - Please explore additional materials for this milestone",
+                    url="https://developer.mozilla.org/",
+                    description="Official documentation for this topic",
                 )
             ]
         return v
@@ -659,39 +658,20 @@ Return ONLY the JSON object, no markdown formatting or explanation.
                 )
                 
                 if perplexity_results and len(perplexity_results) > 0:
-                    print(f"  ✓ Found {len(perplexity_results)} specific resources from trusted sources")
-                    return milestone, [ResourceItem(**r) for r in perplexity_results]
+                    cleaned_results = sanitize_resources(perplexity_results, contextualized_query, 5)
+                    print(f"  ✓ Found {len(cleaned_results)} specific resources from trusted sources")
+                    return milestone, [ResourceItem(**r) for r in cleaned_results]
                 else:
                     # Fallback to default resources if Perplexity fails
                     print(f"  ⚠️ Perplexity search returned no results, using fallback")
-                    return milestone, [
-                        ResourceItem(
-                            type="Video",
-                            url=f"https://www.youtube.com/results?search_query={milestone.title.replace(' ', '+')}",
-                            description=f"YouTube: {milestone.title}"
-                        ),
-                        ResourceItem(
-                            type="Online Course",
-                            url=f"https://www.coursera.org/search?query={milestone.title.replace(' ', '+')}",
-                            description=f"Coursera: {milestone.title}"
-                        )
-                    ]
+                    fallback = sanitize_resources([], contextualized_query, 3)
+                    return milestone, [ResourceItem(**r) for r in fallback]
                     
             except Exception as _err:
                 print(f"  ⚠️  Resource search failed for {milestone.title}: {_err}")
-                # Return default resources
-                return milestone, [
-                    ResourceItem(
-                        type="Video",
-                        url=f"https://www.youtube.com/results?search_query={milestone.title.replace(' ', '+')}",
-                        description=f"YouTube: {milestone.title}"
-                    ),
-                    ResourceItem(
-                        type="Online Course",
-                        url=f"https://www.coursera.org/search?query={milestone.title.replace(' ', '+')}",
-                        description=f"Coursera: {milestone.title}"
-                    )
-                ]
+                contextualized_query = f"{topic}: {milestone.title}"
+                fallback = sanitize_resources([], contextualized_query, 3)
+                return milestone, [ResourceItem(**r) for r in fallback]
         
         # Use ThreadPoolExecutor to fetch resources in parallel
         with ThreadPoolExecutor(max_workers=3) as executor:
